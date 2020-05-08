@@ -21,12 +21,13 @@ func init() {
 }
 
 type httpOutput struct {
-	log      *logp.Logger
-	url      string
-	beat     beat.Info
-	observer outputs.Observer
-	codec    codec.Codec
-	client   *http.Client
+	log            *logp.Logger
+	url            string
+	beat           beat.Info
+	observer       outputs.Observer
+	codec          codec.Codec
+	client         *http.Client
+	removeMetaData bool
 }
 
 // makeHTTP instantiates a new file output instance.
@@ -41,10 +42,11 @@ func makeHTTP(
 		return outputs.Fail(err)
 	}
 	ho := &httpOutput{
-		log:      logp.NewLogger("http"),
-		beat:     beat,
-		observer: observer,
-		url:      config.URL,
+		log:            logp.NewLogger("http"),
+		beat:           beat,
+		observer:       observer,
+		url:            config.URL,
+		removeMetaData: config.RemoveMetaData,
 	}
 	// disable bulk support in publisher pipeline
 	if err := cfg.SetInt("bulk_max_size", -1, -1); err != nil {
@@ -96,6 +98,13 @@ func (out *httpOutput) Publish(_ context.Context, batch publisher.Batch) error {
 	dropped := 0
 	for i := range events {
 		event := &events[i]
+		if out.removeMetaData {
+			if err := event.Content.Fields.Delete("@metadata"); err != nil {
+				out.log.Warn("Delete @metadata error: ", err)
+			}
+
+		}
+
 		out.log.Debugf("Message fields: %s", event.Content.Fields.StringToPrint())
 
 		serializedEvent, err := out.codec.Encode(out.beat.Beat, &event.Content)
