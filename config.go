@@ -2,6 +2,7 @@ package http
 
 import (
 	"github.com/elastic/beats/v7/libbeat/outputs/codec"
+	"net/url"
 )
 
 type config struct {
@@ -16,5 +17,7 @@ var (
 )
 
 func (c *config) Validate() error {
-	return nil
+	_, err := url.ParseRequestURI(c.URL)
+
+	return err
 }

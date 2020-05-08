@@ -140,7 +140,9 @@ func (out *httpOutput) send(data []byte) error {
 
 	buf := bytes.NewBuffer(data)
 	req, err := http.NewRequest("POST", out.url, buf)
-
+	if err != nil {
+		return err
+	}
 	resp, err := out.client.Do(req)
 	if err != nil {
 		return err
