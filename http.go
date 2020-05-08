@@ -96,6 +96,7 @@ func (out *httpOutput) Publish(_ context.Context, batch publisher.Batch) error {
 	dropped := 0
 	for i := range events {
 		event := &events[i]
+		out.log.Debugf("Message fields: %s", event.Content.Fields.StringToPrint())
 
 		serializedEvent, err := out.codec.Encode(out.beat.Beat, &event.Content)
 		if err != nil {
