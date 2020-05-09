@@ -168,17 +168,19 @@ func (out *httpOutput) serializeAll(event *publisher.Event) ([]byte, error) {
 }
 
 func (out *httpOutput) Publish(_ context.Context, batch publisher.Batch) error {
-	defer batch.ACK()
-
 	st := out.observer
 	events := batch.Events()
 	st.NewBatch(len(events))
 
-	dropped := 0
-	for i := range events {
-		event := &events[i]
+	if len(events) == 0 {
+		batch.ACK()
+		return nil
+	}
 
-		serializedEvent, err := out.serialize(event)
+	for i := range events {
+		event := events[i]
+
+		serializedEvent, err := out.serialize(&event)
 
 		if err != nil {
 			if event.Guaranteed() {
@@ -188,29 +190,24 @@ func (out *httpOutput) Publish(_ context.Context, batch publisher.Batch) error {
 			}
 			out.log.Debugf("Failed event: %v", event)
 
-			dropped++
-			continue
+			batch.Retry()
+			return err
 		}
 
 		if err = out.send(serializedEvent); err != nil {
-			st.WriteError(err)
-
 			if event.Guaranteed() {
 				out.log.Errorf("Writing event to http failed with: %+v", err)
 			} else {
 				out.log.Warnf("Writing event to http failed with: %+v", err)
 			}
 
-			dropped++
-			continue
+			batch.Retry()
+			return err
 		}
-
-		st.WriteBytes(len(serializedEvent))
 	}
 
-	st.Dropped(dropped)
-	st.Acked(len(events) - dropped)
-
+	batch.ACK()
+	st.Acked(len(events))
 	return nil
 }
 
