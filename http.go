@@ -12,7 +12,9 @@ import (
 	"github.com/elastic/beats/v7/libbeat/outputs/codec"
 	"github.com/elastic/beats/v7/libbeat/publisher"
 	"github.com/json-iterator/go"
+	"io/ioutil"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -30,6 +32,7 @@ type httpOutput struct {
 	codec     codec.Codec
 	client    *http.Client
 	serialize func(event *publisher.Event) ([]byte, error)
+	reqPool   sync.Pool
 }
 
 // makeHTTP instantiates a new file output instance.
@@ -82,6 +85,16 @@ func (out *httpOutput) init(beat beat.Info, c config) error {
 	}
 
 	out.client = &http.Client{Transport: tr}
+
+	out.reqPool = sync.Pool{
+		New: func() interface{} {
+			req, err := http.NewRequest("POST", out.url, nil)
+			if err != nil {
+				return err
+			}
+			return req
+		},
+	}
 
 	out.log.Infof("Initialized http output. "+
 		"url=%v codec=%v only_fields=%v",
@@ -167,10 +180,14 @@ func (out *httpOutput) String() string {
 func (out *httpOutput) send(data []byte) error {
 
 	buf := bytes.NewBuffer(data)
-	req, err := http.NewRequest("POST", out.url, buf)
+	req, err := out.getReq()
 	if err != nil {
 		return err
 	}
+	defer out.putReq(req)
+
+	req.Body = ioutil.NopCloser(buf)
+
 	resp, err := out.client.Do(req)
 	if err != nil {
 		return err
@@ -180,4 +197,24 @@ func (out *httpOutput) send(data []byte) error {
 	}
 
 	return nil
+}
+
+func (out *httpOutput) getReq() (*http.Request, error) {
+	tmp := out.reqPool.Get()
+
+	req, ok := tmp.(*http.Request)
+	if ok {
+		return req, nil
+	}
+
+	err, ok := tmp.(error)
+	if ok {
+		return nil, err
+	}
+
+	return nil, errors.New("pool assertion error")
+}
+
+func (out *httpOutput) putReq(req *http.Request) {
+	out.reqPool.Put(req)
 }
