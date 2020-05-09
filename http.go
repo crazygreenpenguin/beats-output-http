@@ -106,15 +106,15 @@ func (out *httpOutput) init(beat beat.Info, c config) error {
 	}
 
 	out.log.Infof("Initialized http output:\n"+
-		"url=%v\n "+
-		"codec=%v\n "+
+		"url=%v\n"+
+		"codec=%v\n"+
 		"only_fields=%v\n"+
 		"max_retries=%v\n"+
 		"compression=%v\n"+
 		"keep_alive=%v\n"+
-		"max_idle_conns=%v \n"+
+		"max_idle_conns=%v\n"+
 		"idle_conn_timeout=%vs\n"+
-		"response_header_timeout=%vms"+
+		"response_header_timeout=%vms\n"+
 		"username=%v\n"+
 		"password=%v\n",
 		c.URL, c.Codec, c.OnlyFields, c.MaxRetries, c.Compression,
