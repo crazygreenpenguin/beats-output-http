@@ -236,7 +236,7 @@ func (out *httpOutput) send(data []byte) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return errors.New(fmt.Sprintf("bad response code: %d", resp.StatusCode))
+		return fmt.Errorf("bad response code: %d", resp.StatusCode)
 	}
 
 	return nil
