@@ -84,8 +84,8 @@ func (out *httpOutput) init(beat beat.Info, c config) error {
 	out.client = &http.Client{Transport: tr}
 
 	out.log.Infof("Initialized http output. "+
-		"url=%v codec=%v",
-		c.URL, c.Codec)
+		"url=%v codec=%v only_fields=%v",
+		c.URL, c.Codec, c.OnlyFields)
 
 	return nil
 }
