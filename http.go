@@ -229,6 +229,12 @@ func (out *httpOutput) send(data []byte) error {
 	if err != nil {
 		return err
 	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		out.log.Warn("Close response body error:", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return errors.New(fmt.Sprintf("bad response code: %d", resp.StatusCode))
 	}
