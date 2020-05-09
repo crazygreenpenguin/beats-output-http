@@ -192,7 +192,7 @@ func (out *httpOutput) Publish(_ context.Context, batch publisher.Batch) error {
 
 			batch.RetryEvents(events)
 			st.Failed(len(events))
-			return err
+			return nil
 		}
 
 		if err = out.send(serializedEvent); err != nil {
@@ -204,7 +204,7 @@ func (out *httpOutput) Publish(_ context.Context, batch publisher.Batch) error {
 
 			batch.RetryEvents(events)
 			st.Failed(len(events))
-			return err
+			return nil
 		}
 	}
 
