@@ -26,48 +26,53 @@ func init() {
 
 type httpOutput struct {
 	log       *logp.Logger
-	url       string
 	beat      beat.Info
 	observer  outputs.Observer
 	codec     codec.Codec
 	client    *http.Client
 	serialize func(event *publisher.Event) ([]byte, error)
 	reqPool   sync.Pool
+	conf      config
 }
 
-// makeHTTP instantiates a new file output instance.
+// makeHTTP instantiates a new http output instance.
 func makeHTTP(
 	_ outputs.IndexManager,
 	beat beat.Info,
 	observer outputs.Observer,
 	cfg *common.Config,
 ) (outputs.Group, error) {
+
 	config := defaultConfig
 	if err := cfg.Unpack(&config); err != nil {
 		return outputs.Fail(err)
 	}
+
 	ho := &httpOutput{
 		log:      logp.NewLogger("http"),
 		beat:     beat,
 		observer: observer,
-		url:      config.URL,
+		conf:     config,
 	}
+
 	// disable bulk support in publisher pipeline
 	if err := cfg.SetInt("bulk_max_size", -1, -1); err != nil {
 		ho.log.Error("Disable bulk error: ", err)
 	}
 
+	//select serializer
 	ho.serialize = ho.serializeAll
 
 	if config.OnlyFields {
 		ho.serialize = ho.serializeOnlyFields
 	}
 
+	// init output
 	if err := ho.init(beat, config); err != nil {
 		return outputs.Fail(err)
 	}
 
-	return outputs.Success(-1, 0, ho)
+	return outputs.Success(-1, config.MaxRetries, ho)
 }
 
 func (out *httpOutput) init(beat beat.Info, c config) error {
@@ -79,16 +84,20 @@ func (out *httpOutput) init(beat beat.Info, c config) error {
 	}
 
 	tr := &http.Transport{
-		MaxIdleConns:       10,
-		IdleConnTimeout:    30 * time.Second,
-		DisableCompression: true,
+		MaxIdleConns:          out.conf.MaxIdleConns,
+		ResponseHeaderTimeout: time.Duration(out.conf.ResponseHeaderTimeout) * time.Millisecond,
+		IdleConnTimeout:       time.Duration(out.conf.IdleConnTimeout) * time.Second,
+		DisableCompression:    !out.conf.Compression,
+		DisableKeepAlives:     !out.conf.KeepAlive,
 	}
 
-	out.client = &http.Client{Transport: tr}
+	out.client = &http.Client{
+		Transport: tr,
+	}
 
 	out.reqPool = sync.Pool{
 		New: func() interface{} {
-			req, err := http.NewRequest("POST", out.url, nil)
+			req, err := http.NewRequest("POST", out.conf.URL, nil)
 			if err != nil {
 				return err
 			}
@@ -96,15 +105,47 @@ func (out *httpOutput) init(beat beat.Info, c config) error {
 		},
 	}
 
-	out.log.Infof("Initialized http output. "+
-		"url=%v codec=%v only_fields=%v",
-		c.URL, c.Codec, c.OnlyFields)
-
+	out.log.Infof("Initialized http output:\n"+
+		"url=%v\n "+
+		"codec=%v\n "+
+		"only_fields=%v\n"+
+		"max_retries=%v\n"+
+		"compression=%v\n"+
+		"keep_alive=%v\n"+
+		"max_idle_conns=%v \n"+
+		"idle_conn_timeout=%vs\n"+
+		"response_header_timeout=%vms"+
+		"username=%v\n"+
+		"password=%v\n",
+		c.URL, c.Codec, c.OnlyFields, c.MaxRetries, c.Compression,
+		c.KeepAlive, c.MaxIdleConns, c.IdleConnTimeout, c.ResponseHeaderTimeout,
+		c.Username, maskPass(c.Password))
 	return nil
+}
+
+func maskPass(password string) string {
+	result := ""
+	if len(password) <= 8 {
+		for i := 0; i < len(password); i++ {
+			result += "*"
+		}
+		return result
+	}
+
+	for i, char := range password {
+		if i > 1 && i < len(password)-2 {
+			result += "*"
+		} else {
+			result += string(char)
+		}
+	}
+
+	return result
 }
 
 // Implement Client
 func (out *httpOutput) Close() error {
+	out.client.CloseIdleConnections()
 	return nil
 }
 
@@ -174,19 +215,16 @@ func (out *httpOutput) Publish(_ context.Context, batch publisher.Batch) error {
 }
 
 func (out *httpOutput) String() string {
-	return "http(" + out.url + ")"
+	return "http(" + out.conf.URL + ")"
 }
 
 func (out *httpOutput) send(data []byte) error {
 
-	buf := bytes.NewBuffer(data)
-	req, err := out.getReq()
+	req, err := out.getReq(data)
 	if err != nil {
 		return err
 	}
 	defer out.putReq(req)
-
-	req.Body = ioutil.NopCloser(buf)
 
 	resp, err := out.client.Do(req)
 	if err != nil {
@@ -199,11 +237,17 @@ func (out *httpOutput) send(data []byte) error {
 	return nil
 }
 
-func (out *httpOutput) getReq() (*http.Request, error) {
+func (out *httpOutput) getReq(data []byte) (*http.Request, error) {
 	tmp := out.reqPool.Get()
 
 	req, ok := tmp.(*http.Request)
 	if ok {
+		buf := bytes.NewBuffer(data)
+		req.Body = ioutil.NopCloser(buf)
+		req.Header.Set("User-Agent", "beat "+out.beat.Version)
+		if out.conf.Username != "" {
+			req.SetBasicAuth(out.conf.Username, out.conf.Password)
+		}
 		return req, nil
 	}
 
