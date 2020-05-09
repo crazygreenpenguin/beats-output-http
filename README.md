@@ -1,3 +1,5 @@
+[![License](http://img.shields.io/badge/license-mit-blue.svg)](https://raw.githubusercontent.com/crazygreenpenguin/beats-output-http/master/LICENSE)
+[![Build Status](https://travis-ci.org/crazygreenpenguin/beats-output-http.svg?branch=master)](https://travis-ci.com/crazygreenpenguin/beats-output-http)
 # beats-output-http
 HTTP output producer for the Elastic Beats framework
 beats-output-http. Output for the Elastic Beats platform that simply
