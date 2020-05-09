@@ -5,29 +5,31 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"time"
-
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/beats/v7/libbeat/common"
 	"github.com/elastic/beats/v7/libbeat/logp"
 	"github.com/elastic/beats/v7/libbeat/outputs"
 	"github.com/elastic/beats/v7/libbeat/outputs/codec"
 	"github.com/elastic/beats/v7/libbeat/publisher"
+	"github.com/json-iterator/go"
+	"net/http"
+	"time"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func init() {
 	outputs.RegisterType("http", makeHTTP)
 }
 
 type httpOutput struct {
-	log            *logp.Logger
-	url            string
-	beat           beat.Info
-	observer       outputs.Observer
-	codec          codec.Codec
-	client         *http.Client
-	removeMetaData bool
+	log       *logp.Logger
+	url       string
+	beat      beat.Info
+	observer  outputs.Observer
+	codec     codec.Codec
+	client    *http.Client
+	serialize func(event *publisher.Event) ([]byte, error)
 }
 
 // makeHTTP instantiates a new file output instance.
@@ -42,15 +44,20 @@ func makeHTTP(
 		return outputs.Fail(err)
 	}
 	ho := &httpOutput{
-		log:            logp.NewLogger("http"),
-		beat:           beat,
-		observer:       observer,
-		url:            config.URL,
-		removeMetaData: config.RemoveMetaData,
+		log:      logp.NewLogger("http"),
+		beat:     beat,
+		observer: observer,
+		url:      config.URL,
 	}
 	// disable bulk support in publisher pipeline
 	if err := cfg.SetInt("bulk_max_size", -1, -1); err != nil {
 		ho.log.Error("Disable bulk error: ", err)
+	}
+
+	ho.serialize = ho.serializeAll
+
+	if config.OnlyFields {
+		ho.serialize = ho.serializeOnlyFields
 	}
 
 	if err := ho.init(beat, config); err != nil {
@@ -88,6 +95,24 @@ func (out *httpOutput) Close() error {
 	return nil
 }
 
+func (out *httpOutput) serializeOnlyFields(event *publisher.Event) ([]byte, error) {
+	serializedEvent, err := json.Marshal(&event.Content.Fields)
+	if err != nil {
+		out.log.Error("Serialization error: ", err)
+		return make([]byte, 0), err
+	}
+	return serializedEvent, nil
+}
+
+func (out *httpOutput) serializeAll(event *publisher.Event) ([]byte, error) {
+	serializedEvent, err := out.codec.Encode(out.beat.Beat, &event.Content)
+	if err != nil {
+		out.log.Error("Serialization error: ", err)
+		return make([]byte, 0), err
+	}
+	return serializedEvent, nil
+}
+
 func (out *httpOutput) Publish(_ context.Context, batch publisher.Batch) error {
 	defer batch.ACK()
 
@@ -98,16 +123,9 @@ func (out *httpOutput) Publish(_ context.Context, batch publisher.Batch) error {
 	dropped := 0
 	for i := range events {
 		event := &events[i]
-		if out.removeMetaData {
-			if err := event.Content.Fields.Delete("@metadata"); err != nil {
-				out.log.Warn("Delete @metadata error: ", err)
-			}
 
-		}
+		serializedEvent, err := out.serialize(event)
 
-		out.log.Debugf("Message fields: %s", event.Content.Fields.StringToPrint())
-
-		serializedEvent, err := out.codec.Encode(out.beat.Beat, &event.Content)
 		if err != nil {
 			if event.Guaranteed() {
 				out.log.Errorf("Failed to serialize the event: %+v", err)

@@ -6,6 +6,7 @@ require (
 	github.com/elastic/beats/v7 v7.0.0-alpha2.0.20200508133914-db57bc6cf5ab
 	github.com/fatih/color v1.9.0 // indirect
 	github.com/gofrs/uuid v3.3.0+incompatible // indirect
+	github.com/json-iterator/go v1.1.7
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/spf13/cobra v1.0.0 // indirect
 	github.com/stretchr/testify v1.5.1 // indirect

@@ -6,15 +6,15 @@ import (
 )
 
 type config struct {
-	URL            string       `config:"url"`
-	Codec          codec.Config `config:"codec"`
-	RemoveMetaData bool         `config:"remove_metadata"`
+	URL        string       `config:"url"`
+	Codec      codec.Config `config:"codec"`
+	OnlyFields bool         `config:"only_fields"`
 }
 
 var (
 	defaultConfig = config{
-		URL:            "http://127.0.0.1:8090/message",
-		RemoveMetaData: false,
+		URL:        "http://127.0.0.1:8090/message",
+		OnlyFields: false,
 	}
 )
 
