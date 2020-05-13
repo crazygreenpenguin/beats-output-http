@@ -51,8 +51,12 @@ Then configure the http output plugin in filebeat.yaml:
 output.http:
   only_fields: true
   # only fields set force json codec for body and send
-  # only Fields content, no @metadata
+  # only Fields content, no @metadata (from version 0.0.7 @timestamp saving)
   # default=false
+  add_fields:
+    field1: 123
+    field2: "fedggd"
+  #add fields in out message, only if only_fields = true from v0.0.7
   url: 'http://some.example.com:80/foo'
   # URL for sending POST request
   max_retries: -1
