@@ -150,7 +150,12 @@ func (out *httpOutput) Close() error {
 }
 
 func (out *httpOutput) serializeOnlyFields(event *publisher.Event) ([]byte, error) {
-	serializedEvent, err := json.Marshal(&event.Content.Fields)
+	fields := event.Content.Fields
+	fields["@timestamp"] = event.Content.Timestamp
+	for key, val := range out.conf.AddFields {
+		fields[key] = val
+	}
+	serializedEvent, err := json.Marshal(&fields)
 	if err != nil {
 		out.log.Error("Serialization error: ", err)
 		return make([]byte, 0), err

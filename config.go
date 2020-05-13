@@ -7,17 +7,18 @@ import (
 )
 
 type config struct {
-	URL                   string       `config:"url"`
-	Codec                 codec.Config `config:"codec"`
-	OnlyFields            bool         `config:"only_fields"`
-	MaxRetries            int          `config:"max_retries"`
-	Compression           bool         `config:"compression"`
-	KeepAlive             bool         `config:"keep_alive"`
-	MaxIdleConns          int          `config:"max_idle_conns"`
-	IdleConnTimeout       int          `config:"idle_conn_timeout"`
-	ResponseHeaderTimeout int          `config:"response_header_timeout"`
-	Username              string       `config:"username"`
-	Password              string       `config:"password"`
+	URL                   string                 `config:"url"`
+	Codec                 codec.Config           `config:"codec"`
+	OnlyFields            bool                   `config:"only_fields"`
+	MaxRetries            int                    `config:"max_retries"`
+	Compression           bool                   `config:"compression"`
+	KeepAlive             bool                   `config:"keep_alive"`
+	MaxIdleConns          int                    `config:"max_idle_conns"`
+	IdleConnTimeout       int                    `config:"idle_conn_timeout"`
+	ResponseHeaderTimeout int                    `config:"response_header_timeout"`
+	Username              string                 `config:"username"`
+	Password              string                 `config:"password"`
+	AddFields             map[string]interface{} `config:"add_fields"`
 }
 
 var (
@@ -32,6 +33,7 @@ var (
 		ResponseHeaderTimeout: 100,
 		Username:              "",
 		Password:              "",
+		AddFields:             make(map[string]interface{}, 0),
 	}
 )
 
