@@ -10,7 +10,7 @@ Compatibilities
 =====
 This output require v7 beat API for older version try using https://github.com/raboof/beats-output-http
 
-Compatibility testing conducted with beats 7.8 and output version v0.0.6
+Compatibility testing conducted with beats 7.8 and output version v0.0.7
 
 Attention
 =====
