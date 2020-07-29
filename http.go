@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/crazygreenpenguin/beats-output-http/resolver"
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/beats/v7/libbeat/common"
 	"github.com/elastic/beats/v7/libbeat/logp"
@@ -13,12 +14,15 @@ import (
 	"github.com/elastic/beats/v7/libbeat/publisher"
 	"github.com/json-iterator/go"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"sync"
 	"time"
 )
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
+var dnsCache = resolver.NewDNSResolver()
 
 func init() {
 	outputs.RegisterType("http", makeHTTP)
@@ -89,6 +93,24 @@ func (out *httpOutput) init(beat beat.Info, c config) error {
 		IdleConnTimeout:       time.Duration(out.conf.IdleConnTimeout) * time.Second,
 		DisableCompression:    !out.conf.Compression,
 		DisableKeepAlives:     !out.conf.KeepAlive,
+		DialContext: func(ctx context.Context, network string, addr string) (conn net.Conn, err error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+			ips, err := dnsCache.LookupHost(ctx, host)
+			if err != nil {
+				return nil, err
+			}
+			for _, ip := range ips {
+				var dialer net.Dialer
+				conn, err = dialer.DialContext(ctx, network, net.JoinHostPort(ip, port))
+				if err == nil {
+					break
+				}
+			}
+			return
+		},
 	}
 
 	out.client = &http.Client{
